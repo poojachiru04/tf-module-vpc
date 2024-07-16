@@ -7,17 +7,17 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 }
 
-resource "aws_subnet" "web" {
-  count             = length(var.web_subnet_cidr)
+resource "aws_subnet" "lb" {
+  count             = length(var.lb_subnet_cidr)
   vpc_id            = aws_vpc.main.id
-  cidr_block        = var.web_subnet_cidr[count.index]
-  tags              = local.web_subnet_tags
+  cidr_block        = var.lb_subnet_cidr[count.index]
+  tags              = local.lb_subnet_tags
   availability_zone = var.azs[count.index]
 }
 
-resource "aws_route_table" "web" {
+resource "aws_route_table" "lb" {
   vpc_id = aws_vpc.main.id
-  tags   = local.web_rt_tags
+  tags   = local.lb_rt_tags
 
   route {
     cidr_block                = var.default_vpc_cidr
@@ -37,28 +37,28 @@ resource "aws_eip" "main" {
 
 resource "aws_nat_gateway" "main" {
   allocation_id = aws_eip.main.id
-  subnet_id     = aws_subnet.web.*.id[0]
+  subnet_id     = aws_subnet.lb.*.id[0]
   tags          = local.ngw_tags
 }
 
 
-resource "aws_route_table_association" "web" {
-  count          = length(aws_subnet.web.*.id)
-  route_table_id = aws_route_table.web.id
-  subnet_id      = aws_subnet.web.*.id[count.index]
+resource "aws_route_table_association" "lb" {
+  count          = length(aws_subnet.lb.*.id)
+  route_table_id = aws_route_table.lb.id
+  subnet_id      = aws_subnet.lb.*.id[count.index]
 }
 
-resource "aws_subnet" "app" {
-  count             = length(var.app_subnet_cidr)
+resource "aws_subnet" "eks" {
+  count             = length(var.eks_subnet_cidr)
   vpc_id            = aws_vpc.main.id
-  cidr_block        = var.app_subnet_cidr[count.index]
-  tags              = local.app_subnet_tags
+  cidr_block        = var.eks_subnet_cidr[count.index]
+  tags              = local.eks_subnet_tags
   availability_zone = var.azs[count.index]
 }
 
-resource "aws_route_table" "app" {
+resource "aws_route_table" "eks" {
   vpc_id = aws_vpc.main.id
-  tags   = local.app_rt_tags
+  tags   = local.eks_rt_tags
 
   route {
     cidr_block                = var.default_vpc_cidr
@@ -72,10 +72,10 @@ resource "aws_route_table" "app" {
 
 }
 
-resource "aws_route_table_association" "app" {
-  count          = length(aws_subnet.app.*.id)
-  route_table_id = aws_route_table.app.id
-  subnet_id      = aws_subnet.app.*.id[count.index]
+resource "aws_route_table_association" "eks" {
+  count          = length(aws_subnet.eks.*.id)
+  route_table_id = aws_route_table.eks.id
+  subnet_id      = aws_subnet.eks.*.id[count.index]
 }
 
 resource "aws_subnet" "db" {
@@ -124,38 +124,4 @@ resource "aws_route" "default-vpc" {
   route_table_id            = var.default_vpc_rt
   destination_cidr_block    = var.vpc_cidr_block
   vpc_peering_connection_id = aws_vpc_peering_connection.main.id
-}
-
-
-resource "aws_security_group" "main" {
-  name        = "test-${var.env}"
-  description = "test-${var.env}"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH Port"
-  }
-
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-}
-
-resource "aws_instance" "web" {
-  ami                    = "ami-0f50ed9b20e509fac"
-  instance_type          = "t3.micro"
-  vpc_security_group_ids = [aws_security_group.main.id]
-  subnet_id              = aws_subnet.app.*.id[0]
-
-  tags = {
-    Name = "test"
-  }
 }
